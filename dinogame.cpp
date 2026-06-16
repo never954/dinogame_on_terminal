@@ -5,22 +5,28 @@
 #include <thread>
 #include <chrono>
 #include <ctime>
+#include <signal.h>
 
 using namespace std;
 
-   
 void initTermios() {
     termios term;
     tcgetattr(STDIN_FILENO, &term);
     term.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &term);
 }
- 
+
 void resetTermios() {
     termios term;
     tcgetattr(STDIN_FILENO, &term);
     term.c_lflag |= (ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &term);
+}
+
+// Signal handler to restore terminal settings if the user presses Ctrl+C
+void handleSignal(int sig) {
+    resetTermios();
+    exit(sig);
 }
 
 bool kbhit() {
@@ -40,26 +46,32 @@ char getch() {
 }
 
 int main() {
+    // Register signal handlers
+    signal(SIGINT, handleSignal);
+    signal(SIGTERM, handleSignal);
+
     srand(time(0));
     initTermios();
     
     bool jumping = false;
     int jumpTime = 0;
-    int charpo = 5;
+    const int charpo = 5;      // Player's horizontal position
+    const int screenWidth = 80; // Standardized screen width to prevent wrapping
 
-    int position =  100 ; 
-    int position1 =position + 10 ; 
-    int position2 = position + 20 ;    
-    bool game = true ;
-    int gamescore = 0 ;
+    // Initialize obstacle positions to start off-screen
+    int position = 80;         // Ground obstacle 1
+    int position1 = 110;       // Ground obstacle 2
+    int position2 = 135;       // Airborne obstacle (bird)
+    
+    bool game = true;
+    int gamescore = 0;
     
     cout << "Press SPACE to jump, 'q' to quit\n";
-    this_thread::sleep_for(chrono::milliseconds(1000)) ;
+    this_thread::sleep_for(chrono::milliseconds(1000));
     
     while (game) {
-        
         if (kbhit()) {
-            char ch = getch() ;
+            char ch = getch();
             if (ch == ' ' && !jumping) {  
                 jumping = true;
                 jumpTime = 8; 
@@ -67,9 +79,7 @@ int main() {
             else if (ch == 'q') {
                 break;  
             } 
-            
         }
-        
         
         if (jumping) {
             jumpTime--;
@@ -78,30 +88,38 @@ int main() {
             }
         }
         
-        
+        // Move obstacles left
         position--;
-        if (position==0) position = 113;  
+        if (position <= 0) {
+            position = 85;
+        }
+        
         position1--;
-        if (position1==0) position1 = 103; 
-         position2--;
-        if (position2==0) position2 = 73;  
+        if (position1 <= 0) {
+            position1 = 110;
+        }
+        
+        position2--;
+        if (position2 <= 0) {
+            position2 = 95;
+        }
 
-        if(position == charpo && !jumping){
-            game=false;
-        }if(position1==charpo && !jumping){
-            game=false;
+        // Collision detection
+        if (position == charpo && !jumping) {
+            game = false;
         }
-        if(position2==charpo && jumping){
-            game=false;
+        if (position1 == charpo && !jumping) {
+            game = false;
+        }
+        if (position2 == charpo && jumping) {
+            game = false;
         }
         
-        
-       
+        // Clear screen and render
         system("clear");
         
-        
-         
-        for (int i = 0; i <= 95; i++) {
+        // 1. Render Air Row (contains player if jumping, and airborne obstacles)
+        for (int i = 0; i < screenWidth; i++) {
             if (i == charpo && jumping) {
                 cout << "@";
             }
@@ -114,7 +132,8 @@ int main() {
         }
         cout << "\n";
         
-        for (int i = 0; i <= 103; i++) {
+        // 2. Render Ground Row (contains player if on ground, and ground obstacles)
+        for (int i = 0; i < screenWidth; i++) {
             if (i == charpo && !jumping) {
                 cout << "@";
             }
@@ -128,14 +147,19 @@ int main() {
                 cout << " ";
             }
         }
+        cout << "\n";
       
-        cout<<"\n";
-        
-    cout <<"========================================================================================================\n";
+        // 3. Render Ground Separator
+        for (int i = 0; i < screenWidth; i++) {
+            cout << "=";
+        }
+        cout << "\n";
+
         gamescore++;
-        if(!game ){
-            cout<<"GAME OVER"<<endl;
-            cout<<"SCORE:"<<gamescore;
+        
+        if (!game) {
+            cout << "GAME OVER" << endl;
+            cout << "SCORE: " << gamescore << endl;
         }
         
         this_thread::sleep_for(chrono::milliseconds(50));
@@ -143,5 +167,4 @@ int main() {
     
     resetTermios();
     return 0;
-} 
-  
+}
